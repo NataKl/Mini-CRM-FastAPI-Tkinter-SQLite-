@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Mini CRM — Docker Compose
+#
+# Запуск (из корня проекта):
+#   docker compose up --build          # сборка + старт (foreground)
+#   docker compose up --build -d       # сборка + старт (background)
+#
+# Остановка:
+#   docker compose down                # остановить и удалить контейнеры
+#   docker compose down -v             # + удалить именованный volume с БД
+#
+# Перезапуск без пересборки (применить изменения в .py файлах):
+#   НЕ НУЖЕН — uvicorn автоматически перезагружается при изменении файлов.
+#
+# Просмотр логов:
+#   docker compose logs -f crm_api
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  crm_api:
+    build:
+      context: .                      # корень проекта (для доступа к requirements.txt)
+      dockerfile: crm/Dockerfile
+
+    container_name: mini_crm_api
+
+    ports:
+      - "8000:8000"                   # http://localhost:8000
+
+    volumes:
+      # ── Bind-mount исходного кода ─────────────────────────────────────────
+      # ./crm монтируется поверх /app внутри контейнера.
+      # Любое изменение файла на хосте мгновенно видно в контейнере,
+      # watchfiles обнаруживает его и uvicorn перезапускает сервер.
+      - ./crm:/app
+
+      # ── Именованный volume для SQLite ─────────────────────────────────────
+      # База данных хранится вне контейнера — переживает docker compose down.
+      - crm_db_data:/data
+
+    environment:
+      # Путь к файлу БД внутри контейнера (именованный volume /data)
+      CRM_DB_PATH: /data/crm.db
+
+      # Отключить буферизацию stdout/stderr — логи видны сразу
+      PYTHONUNBUFFERED: "1"
+
+      # Не создавать .pyc файлы в смонтированной директории
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    # Автоматический рестарт при крэше (но не при docker compose down)
+    restart: unless-stopped
+
+    # Healthcheck — доступность API
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/dashboard')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Именованные volumes
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  crm_db_data:
+    driver: local
+    labels:
+      description: "Mini CRM SQLite database persistence"
