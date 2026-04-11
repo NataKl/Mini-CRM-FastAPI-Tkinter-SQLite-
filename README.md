@@ -3,7 +3,7 @@
 Проект объединяет две части:
 
 - `Mini CRM` на `FastAPI + Tkinter + SQLite`
-- интеграцию с `Google Drive` и `Google Sheets` для выгрузки отчётов из GUI
+- интеграция с `Google Drive` и `Google Sheets` для выгрузки отчётов из GUI
 
 Сейчас основная пользовательская история такая: CRM запускается локально, в GUI есть таблицы клиентов, сделок и задач, а каждую таблицу можно выгрузить в отдельный красиво оформленный Google Sheet от имени личного Google-аккаунта пользователя через OAuth.
 
@@ -11,13 +11,16 @@
 
 ```text
 GSheetAPI/
+├── .dockerignore                    # исключения для docker build context
 ├── crm.py                         # основной запуск CRM API из корня
 ├── crm.db                         # SQLite база CRM
+├── docker-compose.yml             # запуск FastAPI backend через Docker Compose
 ├── seed_crm_data.py               # заполнение CRM тестовыми данными через API
 ├── README.md
 ├── requirements.txt
 ├── token.json                     # OAuth token cache (создаётся автоматически)
 ├── crm/
+│   ├── Dockerfile                 # образ FastAPI backend для compose
 │   ├── crm.py                     # альтернативная точка входа API внутри папки crm/
 │   ├── crm_api.py                 # FastAPI API
 │   ├── crm_db.py                  # SQLite data layer / CRUD / поиск / статистика
@@ -109,6 +112,48 @@ cd crm
 ..\venv\Scripts\python.exe crm_ui.py
 ```
 
+### Альтернатива: запуск API через Docker Compose
+
+Если не хотите поднимать локальное `venv`, можно запустить только backend через `Docker Compose`:
+
+```powershell
+docker compose up --build
+```
+
+Или в фоне:
+
+```powershell
+docker compose up --build -d
+```
+
+После запуска доступны:
+
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/redoc`
+- `http://127.0.0.1:8000/dashboard`
+
+Что делает `docker-compose.yml`:
+
+- собирает образ из `crm/Dockerfile`
+- поднимает сервис `crm_api`
+- пробрасывает порт `8000:8000`
+- хранит SQLite-базу в именованном volume `crm_db_data`
+- монтирует `./crm` в контейнер, поэтому изменения в `*.py` подхватываются через hot reload
+
+Остановка:
+
+```powershell
+docker compose down
+```
+
+С удалением volume базы:
+
+```powershell
+docker compose down -v
+```
+
+> `Docker Compose` в этом проекте поднимает только FastAPI API. `Tkinter GUI` по-прежнему запускается локально на хосте.
+
 ## Основные команды
 
 ```powershell
@@ -121,6 +166,12 @@ venv\Scripts\python.exe crm.py --reload
 # Tkinter GUI CRM
 cd crm
 ..\venv\Scripts\python.exe crm_ui.py
+
+# CRM API через Docker Compose
+docker compose up --build
+
+# Остановить Docker Compose
+docker compose down
 
 # Заполнить CRM тестовыми данными через API
 cd ..
